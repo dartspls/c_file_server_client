@@ -15,6 +15,9 @@ Although the server is able to handle multiple transmissions in parallel, there 
 a single thread responsible for accepting and dispatching worker threads, which
 would be a bottleneck with high numbers of concurrent connections.
 
+Project was written and run on Linux - Ubuntu 20.04 LTS. I am using pthread.h which I believe does not
+work on Windows.
+
 ## Resources used
 I have written socket servers in Java before, but not in C. I found [Jacob Sorber's](https://www.youtube.com/@JacobSorber) videos particularly helpful for learning sockets in C. Specifically his [sockets in C series](https://www.youtube.com/playlist?list=PL9IEJIKnBJjH_zM5LnovnoaKlXML5qh17).
 
