@@ -1,32 +1,44 @@
 #include "hashing.h"
 
-/* https://github.com/WayneD/rsync/blob/master/checksum.c */
-unsigned int get_checksum1(char *buf1, int length)
+/* calculate a checksum for data in inp */
+unsigned int checksum(char *inp, int length)
 {
-    int i;
-    unsigned int s1, s2;
-    signed char *buf = (signed char *)buf1;
-
-    s1 = s2 = 0;
-    for (i = 0; i < length - 4; i += 4)
-    {
-        s2 += 4 * (s1 + buf[i]) + 3 * buf[i + 1] + 2 * buf[i + 2] + buf[i + 3];
-        s1 += (buf[i] + buf[i + 1] + buf[i + 2] + buf[i + 3]);
-    }
-    for (; i < length; i++)
-    {
-        s1 += buf[i];
-        s2 += s1;
-    }
-
-    return (s1 & 0xffff) + (s2 << 16);
-}
-
-unsigned int hash(char *data, int length)
-{
-    unsigned int hash_val = 0;
+    unsigned int a, b, r, r1, r2;
+    a = b = r = r1 = r2 = 0;
     for (int i = 0; i < length; i++)
     {
+        a += inp[i];
+        b += (length - i) * inp[i];
     }
-    return 0;
+
+    r1 = a % MOD16;
+    r2 = b % MOD16;
+    return r1 + (r2 << 16);
+}
+
+/* given a checksum r, an outgoing character and an incoming character, calculate new checksum.*/
+/* e.g with checksum 'hello' we can calculate csum for 'elloz' by supplying the csum for 'hello', the outgoing char 'h' and incoming char 'z'.*/
+unsigned int rolling_csum(int length, unsigned int r, char outgoing, char incoming)
+{
+    unsigned int r1 = r & 0xffff;
+    unsigned int r2 = r >> 16;
+    r1 = (r1 - outgoing + incoming) % MOD16;
+    r2 = (r2 - (length * outgoing) + r1) % MOD16;
+    return r1 + (r2 << 16);
+}
+
+/* create a 16 bit hash of a checksum */
+unsigned short hash(unsigned int csum)
+{
+    return csum >> 16 + csum & 0xffff;
+}
+
+void md5sum(char *data, int length, unsigned char *digest)
+{
+    int digest_len = DIGEST_LENGTH;
+    EVP_MD_CTX *ctx = EVP_MD_CTX_new();
+    EVP_DigestInit_ex(ctx, EVP_md5(), NULL);
+    EVP_DigestUpdate(ctx, data, length);
+    EVP_DigestFinal_ex(ctx, digest, &digest_len);
+    EVP_MD_CTX_free(ctx);
 }
