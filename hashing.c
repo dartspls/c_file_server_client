@@ -30,12 +30,12 @@ unsigned int rolling_csum(int length, unsigned int r, char outgoing, char incomi
 /* create a 16 bit hash of a checksum */
 unsigned short hash(unsigned int csum)
 {
-    return csum >> 16 + csum & 0xffff;
+    return (csum >> 16) + (csum & 0xffff);
 }
 
 void md5sum(char *data, int length, unsigned char *digest)
 {
-    int digest_len = DIGEST_LENGTH;
+    unsigned int digest_len = DIGEST_LENGTH;
     EVP_MD_CTX *ctx = EVP_MD_CTX_new();
     EVP_DigestInit_ex(ctx, EVP_md5(), NULL);
     EVP_DigestUpdate(ctx, data, length);

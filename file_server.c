@@ -1,6 +1,5 @@
 #include "common.h"
 #include <pthread.h>
-#include <errno.h>
 #include <signal.h>
 
 #define FILE_PATH_LEN 256
@@ -25,20 +24,21 @@ void *handle_connection(void *p_client)
     char buffer[BUFSIZE];
     size_t bytes_read;
     int client_socket = *((int *)p_client);
-    char actualpath[FILE_PATH_LEN];
+    char actualpath[PATH_MAX];
+    char filepath_buf[PATH_MAX];
 
     free(p_client);
 
     /* check that data was received. If read returns -1 then we got nothing from the client */
-    check(bytes_read = read(client_socket, buffer, FILE_PATH_LEN), "recv error");
-    buffer[bytes_read] = 0; // explicit null termination
+    check(bytes_read = read(client_socket, filepath_buf, PATH_MAX), "recv error");
+    filepath_buf[bytes_read] = 0; // explicit null termination
 
-    printf("REQUEST: %s\n", buffer);
+    printf("REQUEST: %s\n", filepath_buf);
     fflush(stdout);
 
-    if (realpath(buffer, actualpath) == NULL)
+    if (realpath(filepath_buf, actualpath) == NULL)
     {
-        printf("Error bad path: %s\n", buffer);
+        printf("Error bad path: %s\n", filepath_buf);
         close(client_socket);
         return NULL;
     }
@@ -47,7 +47,7 @@ void *handle_connection(void *p_client)
     FILE *fp = fopen(actualpath, "r");
     if (fp == NULL)
     {
-        printf("Error opening file %s\n", buffer);
+        printf("Error opening file %s\n", filepath_buf);
         close(client_socket);
         return NULL;
     }
