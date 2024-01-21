@@ -23,10 +23,10 @@ void sync_file(char *ip, char *port_str, char *filename)
     char block_buffer[BLOCK_SIZE];
     unsigned int csum[1];
     char type[1];
-    type[0] = SYNC;
+    type[0] = TX_SYNC;
 
     total_bytes_read = 0;
-    port = parse_port(port_str);
+    check(port = parse_port(port_str), "Failed to parse port. Must be int 0 < n < 65536");
     client_fd = setup_socket(ip, port);
     /* try find file */
     if (realpath(filename, actualpath) == NULL)
@@ -46,7 +46,7 @@ void sync_file(char *ip, char *port_str, char *filename)
     /* communicate to server that we are syncing */
     write(client_fd, type, 1);
     /* send file name */
-    write(client_fd, filename, strlen(filename));
+    write(client_fd, filename, strlen(filename) + 1); /* + 1 for null termination */
 
     while ((bytes_read = fread(block_buffer, 1, BLOCK_SIZE, fp)) > 0)
     {
@@ -70,12 +70,16 @@ void transfer_file(char *ip, char *port_str, char *filename)
 {
     int client_fd, bytes_read, port, total_bytes_read;
     char buffer[BUFSIZE];
+    char type[1];
+    type[0] = TX_TRANSFER;
     total_bytes_read = 0;
 
     port = parse_port(port_str);
 
     /* setup client socket */
     client_fd = setup_socket(ip, port);
+
+    send(client_fd, type, 1, 0);
     send(client_fd, filename, strlen(filename), 0);
 
     /* open file for writing */
@@ -120,10 +124,12 @@ int main(int argc, char **argv)
 
     if (sync == 1)
     {
+        printf("Syncing file\n");
         sync_file(argv[1], argv[2], argv[3]);
     }
     else
     {
+        printf("Transferring file\n");
         transfer_file(argv[1], argv[2], argv[3]);
     }
 }
