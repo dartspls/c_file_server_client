@@ -80,7 +80,7 @@ void init_server(int port)
     printf("Server initialized and listening on port %d\n", port);
 }
 
-int main(int argc, char const **argv)
+int main(int argc, char **argv)
 {
     int client_socket, port, addr_len;
     struct sockaddr_in client_addr;
@@ -96,17 +96,7 @@ int main(int argc, char const **argv)
         exit(1);
     }
 
-    /* parse port from args */
-    errno = 0;
-    char *p_end;
-    port = strtol(argv[1], &p_end, 10);
-
-    /* little bit of error and bounds checking */
-    if (argv[1] == p_end || (errno != 0 && port == 0) || port <= 0 || port >= 65536)
-    {
-        printf("Port must be numeric and in range 0 < n < 65536\n");
-        exit(1);
-    }
+    check(port = parse_port(argv[1]), "Failed to parse port, Must be int 0 < n < 65536");
 
     init_server(port);
 

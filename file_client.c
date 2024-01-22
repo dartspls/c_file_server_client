@@ -1,6 +1,6 @@
 #include "common.h"
 
-int main(int argc, char const **argv)
+int main(int argc, char **argv)
 {
     int sock = 0, bytes_read, client_fd, port;
     struct sockaddr_in server_address;
@@ -13,7 +13,7 @@ int main(int argc, char const **argv)
         exit(1);
     }
 
-    port = strtol(argv[2], NULL, 10);
+    check(port = parse_port(argv[2]), "Failed to parse port, Must be int 0 < n < 65536");
     filename = argv[3];
 
     check(sock = socket(AF_INET, SOCK_STREAM, 0), "Error creating socket");
@@ -32,7 +32,7 @@ int main(int argc, char const **argv)
     {
         printf("Error creating file %s\n", filename);
         close(sock);
-        return 1;
+        exit(EXIT_FAILURE);
     }
 
     /* read from socket and write to file */
