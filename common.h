@@ -22,8 +22,8 @@ struct block_info
 {
     unsigned int checksum;
     int block_num;
-    unsigned char *digest[BLOCK_SIZE];
-};
+    unsigned char *digest[DIGEST_LENGTH];
+} block_info;
 
 /* Error checking. I find readability improves compared to having lots of ifs - idea from Jacob Sorber's C sockets series */
 int check(int exp, const char *msg)

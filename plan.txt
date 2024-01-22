@@ -1,0 +1,73 @@
+Resources used:
+https://www.samba.org/~tridge/phd_thesis.pdf
+https://rsync.samba.org/tech_report/tech_report.html 
+https://www.youtube.com/watch?v=X3Stha8pxXc
+
+
+List of checksums
+
+what about fingerprints? does it receive both? how are they stored? struct of { int checksum; char* fingerprint; } ?
+
+Client:
+check if a file with path/name exists
+NO -> request normal transfer
+YES -> proceed with rsync algo
+
+N = 512 - for fun
+
+read in file in chunks of N bytes
+FOR each chunk:
+    calculate checksum (lightweight) and fingerprint (heavy)
+    send(checksum, fingerprint) to server
+END
+
+WHILE(bytes_read > 0):
+    get index
+    write(data, from index)
+    
+
+
+hash table of (weak, [fingerprint])
+
+list of pairs (csum, fingerprint) ordered by hash(csum)
+hash is 16bit, there will be collisions
+but since all elements are grouped by hash, any items that collide will be together.
+Search through these items until either a matching csum is found, or the hash differs (not found)
+If the csum match is found, then calculate fingerprint for block and compare to fingerprint in list
+If those match -> tada! we have a match
+else -> need to send the mismatched data
+
+server
+begin
+fill window with N bytes
+calculate checksum
+
+while(not end of file) <- need more info here
+    if match(checksum):
+        calculate fingerprint
+
+        if match(fingerprint):
+            if send buffer size > 0:
+                send data
+            endif
+            write out block index
+            skip to end of block
+        else
+            add byte to send buffer <------
+        endif                             |
+                                          | maybe use a goto here for these two?
+    else                                  |
+        add byte to send buffer <----------
+    endif
+
+    move window along by 1
+    calculate checksum
+endwhile
+
+
+writing data to client
+if sending block match
+send TYPE_BLOCK and then BLOCK_NUMBER as 5 bytes (1,4) -> TYPE_BLOCK = char and BLOCK_NUMBER = uint
+
+if sending literal bytes (data)
+send TYPE_DATA and then NUM_BYTES as 5 bytes (1,4) -> TYPE_DATA = char and NUM_BYTES = uint

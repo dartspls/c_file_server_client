@@ -19,6 +19,16 @@ void handle_signal(int sig)
     }
 }
 
+/* comparison function for calling qsort*/
+int compare(const void *a, const void *b)
+{
+    struct block_info *one = (struct block_info *)a;
+    struct block_info *two = (struct block_info *)b;
+    unsigned short hash_one = hash(one->checksum);
+    unsigned short hash_two = hash(two->checksum);
+    return (hash_one > hash_two) - (hash_one < hash_two);
+}
+
 void transfer_file(int client_socket)
 {
     int bytes_read;
@@ -37,7 +47,7 @@ void transfer_file(int client_socket)
     {
         printf("Error bad path: %s\n", filepath_buf);
         close(client_socket);
-        return;
+        EXIT(EXIT_FAILURE);
     }
 
     /* open file */
@@ -62,17 +72,30 @@ void transfer_file(int client_socket)
 
 void sync_file(int client_socket)
 {
-    int bytes_read, i;
+    int bytes_read, j, rb_length, index;
+    int blocks_read = 0;
+    int csum_table[TABLE_SIZE] = {-1};
     char actualpath[PATH_MAX];
     char filepath_buf[PATH_MAX];
     char buffer[BUFSIZE];
     char tbuf[1];
+    unsigned char csum_temp[sizeof(uint32_t)];
+    unsigned char *digest[DIGEST_LENGTH];
+    unsigned short csum_hash;
+    unsigned int last_csum, roll_csum, i;
+    struct block_info block_list_initial[TABLE_SIZE];
+
+    /* initialise csum table */
+    for (i = 0; i < TABLE_SIZE; i++)
+    {
+        csum_table[i] = -1;
+    }
 
     /* reading one char at a time seems like this will have lots of overhead and is probably bad... */
     /* read file name */
     for (i = 0; i < PATH_MAX; i++)
     {
-        check(bytes_read = read(client_socket, tbuf, 1), "recv error");
+        bytes_read = read(client_socket, tbuf, 1);
         filepath_buf[i] = tbuf[0];
         if (tbuf[0] == '\0')
             break;
@@ -81,7 +104,105 @@ void sync_file(int client_socket)
     if (filepath_buf[i] != '\0')
         filepath_buf[i] = '\0';
 
-    printf("file name: %s\n", filepath_buf);
+    if (realpath(filepath_buf, actualpath) == NULL)
+    {
+        printf("Error bad path: %s\n", filepath_buf);
+        close(client_socket);
+        exit(EXIT_FAILURE);
+    }
+
+    /*
+     * data is sent in pairs of (checksum,digest). Checksum is a unsigned integer
+     * so will be the first 4 bytes, and the digest is 16 bytes. Therefore, each
+     * pair takes up 20 bytes. We want to read in a chunk that is a multiple of 20,
+     * I've gone with 1020 since it is close to 1024 and no particular other reason.
+     */
+    while (bytes_read = read(client_socket, buffer, 1020) > 0)
+    {
+        i = 0;
+        while (i < bytes_read)
+        {
+            /* parse data and create block_infos and store in a list */
+            struct block_info block;
+            unsigned char *block_digest[DIGEST_LENGTH];
+            /* convert first 4 bytes to checksum */
+            for (j = 0; j < 4; j++)
+            {
+                csum_temp[j] = buffer[i + j];
+            }
+
+            block.block_num = blocks_read;
+            block.checksum = *(int *)csum_temp;
+            /* bytes 4-20 are digest*/
+            for (j; j < 20; j++)
+            {
+                block.digest[j - 4] = buffer[j];
+            }
+
+            block_list_initial[blocks_read] = block;
+
+            i += 20;
+            blocks_read++;
+            if (blocks_read > TABLE_SIZE)
+            {
+                printf("Too many blocks in file, need to use smaller file or larger block size\n");
+                exit(EXIT_FAILURE);
+            }
+        }
+    }
+
+    /* sort (checksum,digest) pairs by 16bit hash - provides grouping */
+    qsort(block_list_initial, blocks_read, sizeof(block_info), compare);
+
+    /* this seems inefficient */
+    /* build 'hash table' of checksums for first level search */
+    csum_table[hash(block_list_initial[0].checksum)] = 0;
+    last_csum = block_list_initial[0].checksum;
+    for (i = 1; i < blocks_read; i++)
+    {
+        if (last_csum != block_list_initial[i].checksum)
+        {
+            csum_table[hash(block_list_initial[i].checksum)] = i; /* store index of first occurence of checksum in list */
+            last_csum = block_list_initial[i].checksum;
+        }
+    }
+
+    /* read file and start looking for matches */
+    FILE *fp = fopen(actualpath, "r");
+    if (fp == NULL)
+    {
+        printf("Error opening file %s\n", filepath_buf);
+        close(client_socket);
+        return;
+    }
+
+    while (bytes_read = fread(buffer, 1, BUFSIZE, fp) > 0)
+    {
+        rb_length = bytes_read < BLOCK_SIZE ? bytes_read : BLOCK_SIZE;
+        roll_csum = checksum(buffer, rb_length);
+        csum_hash = hash(roll_csum);
+        if (csum_table[csum_hash] != -1)
+        {
+            /* level two search*/
+            index = csum_table[csum_hash];
+            while (hash(block_list_initial[index].checksum) == csum_hash)
+            {
+                if (block_list_initial[index].checksum == roll_csum)
+                {
+                    /* level three */
+                    md5sum(buffer, rb_length, digest);
+                    if (memcmp(digest, block_list_initial[index].digest, DIGEST_LENGTH) == 0)
+                    {
+                        /* match! */
+                        /* TODO send buffer */
+                        /* TODO write TYPE_BLOCK + BLOCK_NUMBER */
+                    }
+                }
+
+                index++;
+            }
+        }
+    }
 }
 
 /* thread function to handle a transmission to a client */

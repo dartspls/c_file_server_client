@@ -11,3 +11,4 @@
 void md5sum(char *data, int length, unsigned char *digest);
 unsigned int checksum(char *inp, int length);
 unsigned int rolling_csum(int length, unsigned int r, char outgoing, char incoming);
+unsigned short hash(unsigned int csum);
